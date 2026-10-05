@@ -1,5 +1,4 @@
-# ==============================================================================
-# pyproject.toml - VisionTrack AI Python Standards Configuration
+# pyproject.toml: SIGHTFORGE Python Standards Configuration
 # ==============================================================================
 
 [tool.black]

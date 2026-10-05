@@ -1,132 +1,78 @@
-# VisionTrack AI — Enterprise Computer Vision SaaS Platform
+# SIGHTFORGE: Real-Time Computer Vision Platform
 
-VisionTrack AI is a highly scalable, production-grade enterprise SaaS platform designed for real-time edge computer vision, multi-stream video analysis, YOLOv8 object detection, and robust Multi-Object Tracking (MOT). This repository holds the foundational codebase, system configurations, docker orchestration networks, CI automation, and code formatting rules for the platform.
-
----
-
-## 🚀 Key Architectural Layout
-
-The foundation follows SOLID and Clean Architecture guidelines split across separate micro-services running in secure containers.
-
-```
-                  +-----------------------------------+
-                  |        IP Camera/RTSP Feed        |
-                  +-----------------------------------+
-                                    |
-                                    v (H.264/RTSP stream)
-                  +-----------------------------------+
-                  |           AI Inference Node       |
-                  |          (PyTorch + YOLOv8)       |
-                  +-----------------------------------+
-                                    |
-                                    v (ByteTrack Matches)
-+--------------+  +-----------------------------------+
-| Next.js Client|<-|           FastAPI Gateway         |
-|  (React 19)  |  |           (SQLAlchemy)            |
-+--------------+  +-----------------------------------+
-                                    |
-                                    v
-                  +-----------------------------------+
-                  |          PostgreSQL Pool          |
-                  +-----------------------------------+
-```
+SIGHTFORGE is an enterprise-grade platform designed for real-time edge computer vision, multi-stream video analysis, YOLOv8 object detection, human pose estimation, and persistent Multi-Object Tracking (ByteTrack).
 
 ---
 
-## 📂 System Directory Tree Reference
-
-This platform is structured to ensure separation of concerns and rapid independent modular engineering.
+## Computer Vision Pipeline
 
 ```
-/
-├── .github/workflows/          # Enterprise Continuous Integration (CI) configuration
-├── ai_engine/                  # Edge Computer Vision processing daemon (PyTorch / YOLO)
-│   ├── weights/                # CNN target model storage directory (.pt / .onnx)
-│   ├── detectors/              # Model wrapper classes (lazy initializers & warmers)
-│   ├── trackers/               # Object tracking systems (ByteTrack, BoT-SORT)
-│   ├── preprocessing/          # OpenCV resizing, alignment, and normalizing pipelines
-│   └── main.py                 # Primary CV acquisition and processing event loop
-├── backend/                    # Core REST API Gateway & metadata controller
-│   └── app/
-│       ├── api/                # Route handlers, response schemas, and controllers
-│       ├── core/               # Pydantic configuration settings and exceptions
-│       ├── database/           # Connection pooling engine and SQLAlchemy sessions
-│       ├── models/             # Database relational table models
-│       └── main.py             # FastAPI bootstrap loader and event registers
-├── src/                        # Next.js / React 19 visual client explorer
-│   ├── components/             # Subdivided, high-fidelity UI layout files
-│   └── App.tsx                 # Core interactive visual architect portal
-├── docker-compose.yml          # Full-stack network composition orchestrator
-├── Dockerfile.frontend         # Stage 2 production optimized Next.js dockerizer
-├── Dockerfile.backend          # Stage 2 production optimized FastAPI dockerizer
-├── Dockerfile.ai               # PyTorch GPU-accelerated node dockerizer
-├── Makefile                    # Developer shell automation task executor
-└── requirements.txt            # Locked Python requirements list
+Camera / Video Stream
+       │
+       ▼
+OpenCV / WebRTC Frame Capture (1280x720 / 1920x1080)
+       │
+       ▼
+Frame Validation & Foreground Pixel Verification
+       │
+  ┌────┴─────────────────────────────┐
+  │                                  │
+  ▼                                  ▼
+YOLOv8 Person Detector         YOLOv8 Pose Estimator
+(COCO Class ID 0 = Person)     (17 COCO Keypoints)
+  │                                  │
+  ▼                                  ▼
+Non-Maximum Suppression (IoU 0.45)  Eyes / Nose / Ears / Limbs
+  │                                  │
+  └──────────────────┬───────────────┘
+                     │
+                     ▼
+             ByteTrack Tracker
+       (Persistent Object Track IDs)
+                     │
+                     ▼
+          Canonical CV Result Frame
+                     │
+                     ▼
+         HTML5 Canvas Overlay (16:9)
+     (Person Bounding Boxes + Skeleton)
+                     │
+                     ▼
+        Live Telemetry & Counting
 ```
 
 ---
 
-## 🛠️ Step-by-Step Installation & Quickstart
+## Detection State Lifecycle
 
-To run the full stack (Next.js, FastAPI, PostgreSQL, and PyTorch AI nodes) in development mode, follow these steps.
-
-### Prerequisites
-- Docker Engine & Docker Compose
-- Node.js 18+ (for local frontend hacking)
-- Python 3.12 (for local backend hacking)
-- NVIDIA Container Toolkit (optional, for hardware-accelerated local inference)
-
-### 1. Configure the Local Environment
-Initialize the environment settings from our system template:
-```bash
-cp .env.example .env
-```
-*(Open `.env` in your editor to tune DB passwords, YOLO threshold levels, and Gemini API keys as needed).*
-
-### 2. Orchestrate Container Infrastructure via Docker Compose
-Build and boot the database pools, API gateways, computer vision daemons, and client dashboards in one unified network:
-```bash
-make up
-```
-*(Verify container health states via `make status` or stream telemetry outputs via `make logs`)*.
-
-### 3. Local Developer Workspace Setup
-If you prefer running components locally outside of Docker during micro-service debugging:
-
-#### Starting FastAPI REST server locally:
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r ../requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-#### Running the AI Computer Vision daemon locally:
-```bash
-cd ai_engine
-source ../backend/venv/bin/activate
-python main.py
-```
-
-#### Hacking on the React Client interface locally:
-```bash
-npm install
-npm run dev
-```
+1. **Authoritative Current Frame**: Every processed frame produces a complete, self-contained CV state (`CVFrame`).
+2. **Atomic Replacement**: Current frame state atomically replaces previous frame state. Detection arrays are never merged across frames.
+3. **Empty Detections Are Valid**: When a room is empty or a subject leaves the frame, the engine emits `detections: []`, `poses: []`, `person_count: 0`, and `tracked_person_count: 0`, instantly clearing all canvas boxes and skeleton lines.
+4. **Current Tracks vs Track History**:
+   - **Current Tracks**: Visible subjects present in the active frame (`tracked_person_count`).
+   - **Track History / Audit Logs**: Retained in historical analytics for audit compliance, but never used to render live overlays.
+5. **Camera Switch & Disconnect Safety**: Switching cameras or pausing immediately invokes `resetFrame()`, eliminating stale ghost bounding boxes across streams.
 
 ---
 
-## 🏆 Clean Architecture & SOLID Design Principles
-1. **Separation of Concerns**: Business core calculations are purely separated from external frameworks.
-2. **Explicit Layer Responsibilities**:
-   - **Presentation Layer**: Next.js client renders pixels and caches server data via React query hook states.
-   - **Application Layer**: FastAPI routes receive REST commands, validate schema structures via Pydantic, and authorize access tokens.
-   - **Domain Layer**: SQLAlchemy models map business structures, entity relationships, and transaction records.
-   - **Infrastructure Layer**: Docker virtualization, PyTorch model-loader loops, GStreamer, and PostgreSQL handle direct system calls.
-3. **No Hardcoded Variables**: All keys, ports, models, and latency buffers are dynamically resolved from environment variables via Pydantic.
+## SIGHTFORGE Design System
+
+- **Light-Only Theme**: Professional warm off-white (`#F7F7F3`), crisp white cards (`#FFFFFF`), warm surfaces (`#FFF9E8`), and subtle borders (`#D9DCD5`).
+- **Accent Colors**: Accent Yellow (`#E7B900`), Status Green (`#3F8F5B`), Alert Pink (`#D96B83`), Technical Blue (`#4D78A8`).
+- **Typography Hierarchy**:
+  - `Montserrat` for primary UI navigation, sidebar, buttons, and form labels.
+  - `Arial Black` for major KPI numerical metrics.
+  - `Times New Roman` for editorial report and audit titles.
+  - `Aharoni` for selective brand moments.
 
 ---
 
-## 🛡️ License
-Distributed under the **MIT License**. Read `LICENSE` file for more details.
+## Testing & Diagnostics
+
+```bash
+# Test CV pipeline on sample frame
+python scripts/test_cv_pipeline.py --confidence 0.35 --iou 0.45
+
+# Test person detection
+python scripts/test_person_detection.py --confidence 0.35
+```

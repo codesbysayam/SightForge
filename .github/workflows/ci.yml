@@ -1,4 +1,4 @@
-name: VisionTrack AI Continuous Integration
+name: SIGHTFORGE Continuous Integration
 
 on:
   push:

@@ -2,7 +2,7 @@
 # ci_cd.yml - Enterprise CI/CD Pipeline
 # ==============================================================================
 
-name: VisionTrack AI Continuous Integration
+name: SIGHTFORGE Continuous Integration
 
 on:
   push:

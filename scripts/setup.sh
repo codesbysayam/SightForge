@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 
-# ==============================================================================
-# setup.sh - VisionTrack AI Developer Environment Setup
+# setup.sh: SIGHTFORGE Developer Environment Setup
 # ==============================================================================
 
 set -euo pipefail
 
-echo "==> Setting up VisionTrack AI monorepo..."
+echo "==> Setting up SIGHTFORGE monorepo..."
 
 # Initialize Frontend Dependencies
 echo "==> Configuring Frontend (Next.js 15)..."

@@ -1,13 +1,13 @@
-# VisionTrack AI - System Architecture
+# SIGHTFORGE: System Architecture
 
-Welcome to the enterprise-grade **VisionTrack AI** monorepo documentation.
+Welcome to the **SIGHTFORGE** real-time computer vision platform architecture documentation.
 
 ## Repository Layout
 
 Our repository is organized as follows:
 
-- **`frontend/`**: A Next.js 15 enterprise web interface featuring React 19, tailwindcss v4, and motion.
-- **`backend/`**: A separate FastAPI REST Gateway using SQLAlchemy, Pydantic v2, Alembic, and connection pooling.
+- **`frontend/`**: A Next.js 15 web interface featuring React 19, tailwindcss v4, and motion.
+- **`backend/`**: A FastAPI REST Gateway using SQLAlchemy, Pydantic v2, Alembic, and connection pooling.
 - **`ai_engine/`**: An isolated PyTorch-based computer vision daemon using a custom multi-object tracking pipeline.
 - **`docker/`**: Independent, specialized Docker files for multi-container orchestration.
 - **`docs/`**: Platform specs and structural roadmaps.

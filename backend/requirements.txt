@@ -1,5 +1,4 @@
-# ==============================================================================
-# requirements.txt - VisionTrack AI Python Ecosystem Specifications
+# requirements.txt: SIGHTFORGE Python Ecosystem Specifications
 # ==============================================================================
 
 # FastAPI & Web Core

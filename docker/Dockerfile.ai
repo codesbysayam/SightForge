@@ -1,5 +1,4 @@
-# ==============================================================================
-# Dockerfile.ai - VisionTrack AI Edge Computer Vision Inference Node
+# Dockerfile.ai: SIGHTFORGE Edge Computer Vision Inference Node
 # ==============================================================================
 
 # Use official NVIDIA PyTorch image as standard base for CUDA hardware acceleration

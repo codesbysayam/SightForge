@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     )
 
     # Core Application Settings
-    APP_NAME: str = "VisionTrack AI"
+    APP_NAME: str = "SIGHTFORGE"
     APP_ENV: str = "development"  # development, staging, production
     DEBUG: bool = True
     SECRET_KEY: str = "placeholder_secret_key_change_in_production"

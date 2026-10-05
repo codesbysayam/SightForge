@@ -82,8 +82,8 @@ class GrafanaDashboardGenerator:
         return {
             "dashboard": {
                 "id": None,
-                "title": "VisionTrack AI Edge Metrics",
-                "tags": ["visiontrack", "edge-ai"],
+                "title": "SIGHTFORGE Edge Metrics",
+                "tags": ["sightforge", "edge-cv"],
                 "timezone": "browser",
                 "schemaVersion": 16,
                 "panels": [

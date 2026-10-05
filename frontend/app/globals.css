@@ -1,28 +1,70 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap');
 @import "tailwindcss";
-
-@theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', 'ui-monospace', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
-
-  --color-prof-bg: #f8fafc;
-  --color-prof-sidebar: #ffffff;
-  --color-prof-header: #0f172a;
-  --color-prof-accent: #2563eb;
-  --color-prof-accent-hover: #1d4ed8;
-  --color-prof-accent-light: #eff6ff;
-  --color-prof-text-main: #1e293b;
-  --color-prof-text-muted: #64748b;
-  --color-prof-border: #e2e8f0;
-}
+@import "../styles/tokens.css";
 
 @layer base {
-  body {
-    background-color: #f1f5f9;
-    color: #1e293b;
-    font-family: var(--font-sans);
+  * {
+    box-sizing: border-box;
   }
+
+  html {
+    overflow-x: hidden;
+    background-color: var(--sf-bg);
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--sf-bg);
+    color: var(--sf-text);
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--sf-yellow);
+    outline-offset: 2px;
+  }
+}
+
+/* Typography Hierarchy Classes */
+.sf-font-ui {
+  font-family: 'Montserrat', Arial, sans-serif;
+}
+
+.sf-kpi {
+  font-family: 'Arial Black', Arial, sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.sf-report-title {
+  font-family: 'Times New Roman', Times, serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sf-brand-display {
+  font-family: 'Aharoni', 'Arial Black', 'Montserrat', Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sf-decorative {
+  font-family: 'Algerian', 'Times New Roman', serif;
+  letter-spacing: 0.05em;
 }
 
 /* Custom scrollbars */
@@ -32,14 +74,18 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--sf-surface-soft);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: var(--sf-border-strong);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--sf-text-muted);
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 5px;
 }

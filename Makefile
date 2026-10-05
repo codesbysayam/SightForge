@@ -1,11 +1,10 @@
-# ==============================================================================
-# Makefile - VisionTrack AI Developer Orchestration Tool
+# Makefile: SIGHTFORGE Developer Orchestration Tool
 # ==============================================================================
 
 .PHONY: help build up down restart logs status shell-backend shell-ai test lint format clean
 
 help:
-	@echo "VisionTrack AI - Enterprise Development Orchestration Commands:"
+	@echo "SIGHTFORGE: Development Orchestration Commands:"
 	@echo "  make build          Build all docker containers with no-cache"
 	@echo "  make up             Start the full SaaS stack in background (db, backend, ai, frontend)"
 	@echo "  make down           Stop and remove all containers, preserving volumes"

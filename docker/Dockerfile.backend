@@ -1,5 +1,4 @@
-# ==============================================================================
-# Dockerfile.backend - VisionTrack AI FastAPI Enterprise Backend
+# Dockerfile.backend: SIGHTFORGE FastAPI Backend
 # ==============================================================================
 
 # Stage 1: Build & Package Compile

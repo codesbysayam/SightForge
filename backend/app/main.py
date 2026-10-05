@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     Handles stateful startup and shutdown hook events of the web service context.
     Pre-warms DB pools, confirms cloud persistence connectivity, logs shutdown alerts.
     """
-    logger.info("Initializing VisionTrack AI Backend Service...")
+    logger.info("Initializing SIGHTFORGE Backend Service...")
     
     # Run critical startup system dependency verifications
     db_operational = verify_database_connection()
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     logger.info("Server startup sequence completed successfully. Port: 8000")
     yield
     
-    logger.info("Shutting down VisionTrack AI Backend Service...")
+    logger.info("Shutting down SIGHTFORGE Backend Service...")
     logger.info("Closing persistent connections. System Offline.")
 
 

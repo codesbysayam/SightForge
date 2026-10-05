@@ -18,7 +18,7 @@ class VisionTrackAIDaemon:
     coordinates multi-object tracker matches, and pushes metadata payloads back to FastAPI.
     """
     def __init__(self) -> None:
-        logger.info("Initializing VisionTrack AI Edge Daemon...")
+        logger.info("Initializing SIGHTFORGE Edge Daemon...")
         self.loader = EnterpriseModelLoader()
         self.is_running = False
 
@@ -31,7 +31,7 @@ class VisionTrackAIDaemon:
             sys.exit(1)
 
         self.is_running = True
-        logger.info("VisionTrack AI Edge Daemon actively listening for live RTSP camera feeds...")
+        logger.info("SIGHTFORGE Edge Daemon actively listening for live RTSP camera feeds...")
         
         # Simulate video stream loop inside standard edge processing lifecycle
         frame_counter = 0

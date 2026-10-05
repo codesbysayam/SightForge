@@ -1,6 +1,6 @@
 {
-  "name": "VisionTrack AI",
-  "description": "Enterprise Computer Vision Platform for real-time edge streaming, YOLOv8 detection, and multi-object tracking.",
+  "name": "SIGHTFORGE",
+  "description": "Real-time computer vision, object detection, multi-object tracking, and edge analytics.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

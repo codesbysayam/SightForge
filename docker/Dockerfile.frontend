@@ -1,5 +1,4 @@
-# ==============================================================================
-# Dockerfile.frontend - VisionTrack AI Next.js 15 Enterprise Client
+# Dockerfile.frontend: SIGHTFORGE Next.js 15 Client
 # ==============================================================================
 
 # Stage 1: Dependency Installation & Building
