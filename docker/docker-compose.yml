@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: visiontrack-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-visiontrack_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_database_password_here}
+      POSTGRES_DB: ${POSTGRES_DB:-visiontrack}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - visiontrack_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: visiontrack-backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-visiontrack_admin}:${POSTGRES_PASSWORD:-secure_database_password_here}@db:5432/${POSTGRES_DB:-visiontrack}
+      - SECRET_KEY=${SECRET_KEY}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - APP_ENV=production
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./data/storage:/app/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - visiontrack_network
+
+  # AI Inference Engine Service (YOLOv8 + OpenCV Pipeline)
+  ai_engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.ai
+    container_name: visiontrack-ai-engine
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - BACKEND_URL=http://backend:8000/api/v1
+      - YOLO_MODEL_NAME=${YOLO_MODEL_NAME:-yolov8n.pt}
+      - CV_DEVICE=${CV_DEVICE:-cuda}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./ai_engine/weights:/app/ai_engine/weights
+      - ./data/storage:/app/data/storage
+    depends_on:
+      - backend
+    networks:
+      - visiontrack_network
+
+  # Next.js Frontend App Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: visiontrack-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://backend:8000/api/v1
+    depends_on:
+      - backend
+    networks:
+      - visiontrack_network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  visiontrack_network:
+    driver: bridge

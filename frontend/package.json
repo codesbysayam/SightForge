@@ -1,0 +1,29 @@
+{
+  "name": "visiontrack-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000 -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "tailwindcss": "^4.0.0-beta.8",
+    "@tailwindcss/postcss": "^4.0.0-beta.8",
+    "postcss": "^8.4.49",
+    "@babel/runtime": "^7.26.0",
+    "recharts": "^2.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "typescript": "^5.7.2"
+  }
+}

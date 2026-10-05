@@ -1,0 +1,6 @@
+{
+  "name": "VisionTrack AI",
+  "description": "Enterprise Computer Vision Platform for real-time edge streaming, YOLOv8 detection, and multi-object tracking.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

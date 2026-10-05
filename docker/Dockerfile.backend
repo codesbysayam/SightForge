@@ -1,0 +1,60 @@
+# ==============================================================================
+# Dockerfile.backend - VisionTrack AI FastAPI Enterprise Backend
+# ==============================================================================
+
+# Stage 1: Build & Package Compile
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on
+
+# Install compiler dependencies and libpq for PostgreSQL compiling
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install virtualenv to build localized site-packages
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+
+# Install dependencies inside our clean virtual environment
+RUN pip install -r requirements.txt
+
+# Stage 2: Final Production Execution
+FROM python:3.12-slim AS runner
+
+WORKDIR /app
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install only the runtime binary dependencies (libpq is required for psycopg2)
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtualenv and runtime files
+COPY --from=builder /opt/venv /opt/venv
+COPY ./backend /app/backend
+
+# Create logs directory and data storage
+RUN mkdir -p /app/logs /app/data/storage && \
+    chmod -R 755 /app/logs /app/data/storage
+
+# Expose FastAPI port
+EXPOSE 8000
+
+# Set running directory to backend application root
+WORKDIR /app/backend
+
+# Run uvicorn server in optimized production mode
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--log-config", "app/core/logging_config.json"]

@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # High-Security reverse proxy Nginx ingress
+  nginx:
+    image: nginx:alpine
+    container_name: visiontrack-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - visiontrack_network
+
+  # Database persistence layer
+  db:
+    image: postgres:15-alpine
+    container_name: visiontrack-db-prod
+    restart: always
+    shm_size: 1g
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-visiontrack_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_database_password_here}
+      POSTGRES_DB: ${POSTGRES_DB:-visiontrack}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - visiontrack_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # REST API Service (FastAPI)
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: visiontrack-backend-prod
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-visiontrack_admin}:${POSTGRES_PASSWORD:-secure_database_password_here}@db:5432/${POSTGRES_DB:-visiontrack}
+      - SECRET_KEY=${SECRET_KEY}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+      - APP_ENV=production
+    volumes:
+      - ../backend/logs:/app/logs
+      - ../data/storage:/app/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - visiontrack_network
+
+  # AI GPU Realtime Stream Inference Engine
+  ai_engine:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ai
+    container_name: visiontrack-ai-engine-prod
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - BACKEND_URL=http://backend:8000/api/v1
+      - YOLO_MODEL_NAME=${YOLO_MODEL_NAME:-yolov8n.pt}
+      - CV_DEVICE=${CV_DEVICE:-cuda}
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+    volumes:
+      - ../ai_engine/weights:/app/ai_engine/weights
+      - ../data/storage:/app/data/storage
+    depends_on:
+      - backend
+    networks:
+      - visiontrack_network
+
+  # Next.js Client standalone UI
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: visiontrack-frontend-prod
+    restart: always
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://backend:8000/api/v1
+    depends_on:
+      - backend
+    networks:
+      - visiontrack_network
+
+volumes:
+  postgres_data_prod:
+    driver: local
+
+networks:
+  visiontrack_network:
+    driver: bridge

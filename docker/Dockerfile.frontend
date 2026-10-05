@@ -1,0 +1,52 @@
+# ==============================================================================
+# Dockerfile.frontend - VisionTrack AI Next.js 15 Enterprise Client
+# ==============================================================================
+
+# Stage 1: Dependency Installation & Building
+FROM node:18-alpine AS builder
+WORKDIR /app
+
+# Enable corepack for modern package manager support (pnpm/yarn)
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy package descriptors
+COPY package.json pnpm-lock.yaml* yarn.lock* package-lock.json* ./
+
+# Install all dependencies (including dev) for compile
+RUN \
+  if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
+  elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
+  elif [ -f package-lock.json ]; then npm ci; \
+  else npm install; \
+  fi
+
+# Copy complete frontend source
+COPY . .
+
+# Build application (generates statically optimized files or Next.js production cache)
+RUN npm run build
+
+# Stage 2: Minimalist Production Image
+FROM node:18-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Create low-privilege system user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy essential build outputs from Stage 1
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Shift to unprivileged user
+USER nextjs
+
+EXPOSE 3000
+
+# Next.js standalone server entry
+CMD ["node", "server.js"]
