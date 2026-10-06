@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "cd frontend && npm install && npm run dev",
-    "build": "cd frontend && npm install && npm run build && rm -rf ../dist && mkdir -p ../dist && cp -r out/* ../dist/",
-    "clean": "rm -rf dist frontend/out frontend/.next",
+    "build": "cd frontend && npm install && NODE_ENV=production npm run build && cd .. && rm -rf dist out build && mkdir -p dist out build && cp -r frontend/out/. dist/ && cp -r frontend/out/. out/ && cp -r frontend/out/. build/",
+    "clean": "rm -rf dist out build frontend/out frontend/dist frontend/build frontend/.next",
     "lint": "cd frontend && npm run lint || echo 'Lint skipped'",
     "prepare": "husky",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,css}\""

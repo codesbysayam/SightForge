@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart3, TrendingUp, Clock, Activity, Calendar, 
   Download, ArrowUpRight, Cpu, User, ShieldCheck
@@ -17,6 +17,12 @@ const hourlyData = [
 ];
 
 export default function AnalyticsView() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto font-sans">
       {/* Page Header */}
@@ -58,49 +64,47 @@ export default function AnalyticsView() {
             18.2ms
           </div>
           <div className="text-xs text-[#555B55] mt-1">
-            YOLOv8 Edge Hardware
+            Edge Jetson Orin Nano
           </div>
         </div>
 
         <div className="p-4 rounded-xl bg-white border border-[#D9DCD5] shadow-xs">
           <div className="text-xs font-semibold text-[#747A73] uppercase tracking-wider">
-            Active Camera Nodes
+            Detection Accuracy
           </div>
-          <div className="sf-kpi text-3xl sm:text-4xl text-[#E7B900] mt-2">
-            04 / 05
+          <div className="sf-kpi text-3xl sm:text-4xl text-[#1B1D1A] mt-2">
+            94.8%
           </div>
           <div className="text-xs text-[#555B55] mt-1">
-            99.9% Uptime
+            mAP@0.50 (YOLOv8s)
           </div>
         </div>
       </div>
 
-      {/* Hourly Trend Chart */}
-      <div className="p-6 rounded-xl bg-white border border-[#D9DCD5] shadow-xs space-y-4">
-        <h3 className="font-bold text-sm text-[#1B1D1A]">Hourly Detection Activity</h3>
+      {/* Traffic Chart */}
+      <div className="p-5 rounded-xl bg-white border border-[#D9DCD5] shadow-xs">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-[#1B1D1A]">
+            Hourly Person Traffic Density
+          </h2>
+          <span className="text-xs text-[#747A73]">Live Feed Aggregated</span>
+        </div>
+
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={hourlyData}>
-              <defs>
-                <linearGradient id="colorPersons" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3F8F5B" stopOpacity={0.25}/>
-                  <stop offset="95%" stopColor="#3F8F5B" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#D9DCD5" vertical={false} />
-              <XAxis dataKey="time" stroke="#747A73" fontSize={11} />
-              <YAxis stroke="#747A73" fontSize={11} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#FFFFFF', 
-                  borderColor: '#D9DCD5',
-                  borderRadius: '8px',
-                  fontSize: '12px' 
-                }} 
-              />
-              <Area type="monotone" dataKey="persons" stroke="#3F8F5B" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPersons)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {mounted ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={hourlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#EAECE8" />
+                <XAxis dataKey="time" stroke="#747A73" fontSize={11} />
+                <YAxis stroke="#747A73" fontSize={11} />
+                <Tooltip />
+                <Area type="monotone" dataKey="persons" stroke="#3F8F5B" fill="#EEF8F0" strokeWidth={2} name="Persons" />
+                <Area type="monotone" dataKey="vehicles" stroke="#4D78A8" fill="#E6EEF7" strokeWidth={2} name="Vehicles" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full w-full bg-[#F2F3EF] rounded-lg animate-pulse" />
+          )}
         </div>
       </div>
     </div>

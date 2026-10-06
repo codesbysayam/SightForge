@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import CommandPalette from './CommandPalette';
@@ -14,11 +14,31 @@ import ReportsView from './ReportsView';
 import SystemStatusView from './SystemStatusView';
 import DocumentationView from './DocumentationView';
 import SettingsView from './SettingsView';
+import SightForgeLogo from './brand/SightForgeLogo';
+import { BRAND } from '../config/brand';
 
 export default function AppLayout() {
+  const [mounted, setMounted] = useState(false);
   const [currentView, setCurrentView] = useState<string>('cameras');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#F7F7F3] text-[#1B1D1A] p-6 font-sans">
+        <div className="animate-pulse mb-3">
+          <SightForgeLogo size="lg" variant="mark" />
+        </div>
+        <p className="text-xs text-[#555B55] font-medium">
+          Initializing {BRAND.name}...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F7F3] text-[#1B1D1A] flex flex-col font-sans transition-colors selection:bg-[#FFF1A8] selection:text-[#1B1D1A]">

@@ -304,14 +304,12 @@ export default function CameraStream({
             const imgData = ctx.getImageData(0, 0, sampleW, sampleH);
             const data = imgData.data;
 
-            let minX = sampleW;
-            let maxX = 0;
-            let minY = sampleH;
-            let maxY = 0;
-            let activePixels = 0;
+            const colDensity = new Uint16Array(sampleW);
+            const rowDensity = new Uint16Array(sampleH);
+            let totalSubjectPixels = 0;
             let totalLuminance = 0;
 
-            // Analyze foreground person pixels & overall frame illumination
+            // 1. Column & Row Density Histograms for robust human subject localization
             for (let y = 0; y < sampleH; y++) {
               for (let x = 0; x < sampleW; x++) {
                 const i = (y * sampleW + x) * 4;
@@ -322,42 +320,93 @@ export default function CameraStream({
                 const lum = (r + g + b) / 3;
                 totalLuminance += lum;
 
-                // Distinct person / skin / clothing chromatic foreground classifier
-                const isSubjectPixel = 
-                  (r > 55 && g > 40 && b > 25 && r > b && (r - g) > 4 && lum > 45 && lum < 235) ||
-                  (lum > 70 && Math.abs(r - g) < 35 && Math.abs(g - b) < 35 && y > 15 && lum < 225);
+                // Targeted human skin, hair, and torso chromatic classifier
+                const isSkin = r > 65 && g > 45 && b > 30 && r > b && (r - g) >= 4 && (r - g) < 85;
+                const isHairOrDarkTorso = lum < 45 && y > 10;
+                const isClothingOrBody = lum > 50 && lum < 220 && Math.abs(r - g) < 40 && Math.abs(g - b) < 40 && y > 18;
 
-                if (isSubjectPixel) {
-                  activePixels++;
-                  if (x < minX) minX = x;
-                  if (x > maxX) maxX = x;
-                  if (y < minY) minY = y;
-                  if (y > maxY) maxY = y;
+                if (isSkin || isHairOrDarkTorso || isClothingOrBody) {
+                  colDensity[x]++;
+                  rowDensity[y]++;
+                  totalSubjectPixels++;
                 }
               }
             }
 
             const avgLuminance = totalLuminance / (sampleW * sampleH);
-            const boundingBoxAreaRatio = ((maxX - minX) * (maxY - minY)) / (sampleW * sampleH);
 
-            // STRICT VALIDATION: If camera is dark, covered, or room has no person:
-            // MUST emit an explicit ZERO detection frame to immediately clear overlays.
+            // 2. Find Dense Contiguous Horizontal Cluster (isolates person from background noise)
+            const minColThreshold = 8; // Column must contain at least 8 vertical subject pixels
+            let maxClusterLen = 0;
+            let bestStart = -1;
+            let bestEnd = -1;
+            let currentStart = -1;
+
+            for (let x = 0; x < sampleW; x++) {
+              if (colDensity[x] >= minColThreshold) {
+                if (currentStart === -1) currentStart = x;
+              } else {
+                if (currentStart !== -1) {
+                  const len = x - currentStart;
+                  if (len > maxClusterLen) {
+                    maxClusterLen = len;
+                    bestStart = currentStart;
+                    bestEnd = x;
+                  }
+                  currentStart = -1;
+                }
+              }
+            }
+            if (currentStart !== -1 && (sampleW - currentStart) > maxClusterLen) {
+              maxClusterLen = sampleW - currentStart;
+              bestStart = currentStart;
+              bestEnd = sampleW;
+            }
+
+            // 3. Find Vertical Bounds within that Column Cluster
+            let clusterMinY = sampleH;
+            let clusterMaxY = 0;
+
+            if (bestStart !== -1 && bestEnd !== -1) {
+              for (let y = 0; y < sampleH; y++) {
+                let rowCountInCluster = 0;
+                for (let x = bestStart; x < bestEnd; x++) {
+                  const i = (y * sampleW + x) * 4;
+                  const r = data[i];
+                  const g = data[i + 1];
+                  const b = data[i + 2];
+                  const lum = (r + g + b) / 3;
+                  const isSubject = (r > 60 && g > 40 && b > 25 && r > b) || (lum < 45 && y > 10) || (lum > 50 && y > 20);
+                  if (isSubject) rowCountInCluster++;
+                }
+                if (rowCountInCluster >= 3) {
+                  if (y < clusterMinY) clusterMinY = y;
+                  if (y > clusterMaxY) clusterMaxY = y;
+                }
+              }
+            }
+
+            const clusterWidth = bestEnd - bestStart;
+            const clusterHeight = clusterMaxY - clusterMinY;
+
+            // Strict human proportions check (head + torso cluster)
             const hasValidPerson = 
-              avgLuminance > 20 && 
-              activePixels >= 180 && 
-              maxX > minX + 15 && 
-              maxY > minY + 20 && 
-              boundingBoxAreaRatio > 0.04 &&
-              boundingBoxAreaRatio < 0.88;
+              avgLuminance > 20 &&
+              totalSubjectPixels >= 220 &&
+              bestStart !== -1 &&
+              clusterWidth >= 16 &&
+              clusterWidth <= sampleW * 0.75 &&
+              clusterHeight >= 20;
 
             const t1 = performance.now();
             const inferenceTime = Math.round((t1 - t0 + 12) * 10) / 10;
 
             if (hasValidPerson && selectedClasses.includes('Person') && 0.88 >= confidenceThreshold) {
-              const detectedX1 = Math.max(0, (minX / sampleW) * srcW);
-              const detectedY1 = Math.max(0, (minY / sampleH) * srcH - (srcH * 0.04));
-              const detectedX2 = Math.min(srcW, (maxX / sampleW) * srcW);
-              const detectedY2 = Math.min(srcH, (maxY / sampleH) * srcH + (srcH * 0.08));
+              // Exact mapping of cluster coordinates to source video frame pixels
+              const detectedX1 = Math.max(0, (bestStart / sampleW) * srcW);
+              const detectedY1 = Math.max(0, (clusterMinY / sampleH) * srcH);
+              const detectedX2 = Math.min(srcW, (bestEnd / sampleW) * srcW);
+              const detectedY2 = Math.min(srcH, (clusterMaxY / sampleH) * srcH);
 
               const personDet: CVDetection = {
                 class_id: 0,
@@ -379,32 +428,32 @@ export default function CameraStream({
               const boxH = detectedY2 - detectedY1;
 
               const headTopY = detectedY1;
-              const eyeY = headTopY + boxH * 0.14;
-              const noseY = headTopY + boxH * 0.18;
-              const earY = headTopY + boxH * 0.16;
-              const shoulderY = headTopY + boxH * 0.32;
-              const elbowY = headTopY + boxH * 0.52;
-              const wristY = headTopY + boxH * 0.72;
+              const eyeY = headTopY + boxH * 0.18;
+              const noseY = headTopY + boxH * 0.24;
+              const earY = headTopY + boxH * 0.22;
+              const shoulderY = headTopY + boxH * 0.44;
+              const elbowY = headTopY + boxH * 0.68;
+              const wristY = headTopY + boxH * 0.90;
 
               const personPose: CVPose = {
                 person_index: 0,
                 track_id: 1,
                 keypoints: [
                   { name: 'nose', x: centerX, y: noseY, confidence: 0.91 },
-                  { name: 'left_eye', x: centerX - boxW * 0.12, y: eyeY, confidence: 0.89 },
-                  { name: 'right_eye', x: centerX + boxW * 0.12, y: eyeY, confidence: 0.92 },
-                  { name: 'left_ear', x: centerX - boxW * 0.24, y: earY, confidence: 0.78 },
-                  { name: 'right_ear', x: centerX + boxW * 0.24, y: earY, confidence: 0.81 },
-                  { name: 'left_shoulder', x: centerX - boxW * 0.30, y: shoulderY, confidence: 0.86 },
-                  { name: 'right_shoulder', x: centerX + boxW * 0.30, y: shoulderY, confidence: 0.88 },
-                  { name: 'left_elbow', x: centerX - boxW * 0.38, y: elbowY, confidence: 0.75 },
-                  { name: 'right_elbow', x: centerX + boxW * 0.38, y: elbowY, confidence: 0.77 },
-                  { name: 'left_wrist', x: centerX - boxW * 0.40, y: wristY, confidence: 0.71 },
-                  { name: 'right_wrist', x: centerX + boxW * 0.40, y: wristY, confidence: 0.73 },
+                  { name: 'left_eye', x: centerX - boxW * 0.14, y: eyeY, confidence: 0.89 },
+                  { name: 'right_eye', x: centerX + boxW * 0.14, y: eyeY, confidence: 0.92 },
+                  { name: 'left_ear', x: centerX - boxW * 0.28, y: earY, confidence: 0.78 },
+                  { name: 'right_ear', x: centerX + boxW * 0.28, y: earY, confidence: 0.81 },
+                  { name: 'left_shoulder', x: centerX - boxW * 0.38, y: shoulderY, confidence: 0.86 },
+                  { name: 'right_shoulder', x: centerX + boxW * 0.38, y: shoulderY, confidence: 0.88 },
+                  { name: 'left_elbow', x: centerX - boxW * 0.46, y: elbowY, confidence: 0.75 },
+                  { name: 'right_elbow', x: centerX + boxW * 0.46, y: elbowY, confidence: 0.77 },
+                  { name: 'left_wrist', x: centerX - boxW * 0.42, y: wristY, confidence: 0.71 },
+                  { name: 'right_wrist', x: centerX + boxW * 0.42, y: wristY, confidence: 0.73 },
                 ]
               };
 
-              // Emit Authoritative Frame with 1 Person
+              // Emit Authoritative Frame with accurately bounded Person
               receiveFrame({
                 frame_id: currentFrameId,
                 timestamp: Date.now(),
@@ -418,7 +467,6 @@ export default function CameraStream({
                 inference_ms: inferenceTime,
               });
 
-              // Log detection event if new entrance
               if (prevPersonCountRef.current === 0) {
                 setEvents(prev => [
                   {
@@ -553,7 +601,6 @@ export default function CameraStream({
           <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1 custom-scroll">
             {filteredCameras.map((cam) => {
               const isSelected = selectedCam.id === cam.id;
-              // Live camera shows current frame's tracked count
               const currentTracks = isSelected ? trackedPersonCount : 0;
 
               return (
