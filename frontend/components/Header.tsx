@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, Bell, ChevronDown, Check, Sliders, User, 
-  ShieldCheck, Camera, Layers, Activity, Server, ArrowRight
+  ShieldCheck, Camera, Layers, Activity, Server, ArrowRight, Menu
 } from 'lucide-react';
 import { BRAND } from '../config/brand';
 import SightForgeLogo from './brand/SightForgeLogo';
@@ -51,20 +51,18 @@ export default function Header({
   }, []);
 
   return (
-    <header className="h-16 shrink-0 bg-white border-b border-[#D9DCD5] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 select-none shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+    <header className="h-14 sm:h-16 shrink-0 bg-white/95 backdrop-blur-xs border-b border-[#D9DCD5] px-3 sm:px-5 lg:px-6 flex items-center justify-between sticky top-0 z-30 select-none shadow-[0_1px_2px_rgba(0,0,0,0.03)] w-full">
       {/* Left Area: Mobile Drawer Toggle + Logo + Workspace Selector */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
         <button
           onClick={onToggleMobileSidebar}
-          className="p-2 -ml-2 rounded-lg text-[#555B55] hover:text-[#1B1D1A] hover:bg-[#F2F3EF] md:hidden focus-visible:outline-2 focus-visible:outline-[#E7B900]"
+          className="p-1.5 sm:p-2 -ml-1 rounded-lg text-[#555B55] hover:text-[#1B1D1A] hover:bg-[#F2F3EF] md:hidden focus-visible:outline-2 focus-visible:outline-[#E7B900] active:scale-95 transition-all shrink-0"
           aria-label="Toggle navigation menu"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
+          <Menu size={20} />
         </button>
 
-        <div className="cursor-pointer" onClick={() => onSelectView('cameras')}>
+        <div className="cursor-pointer shrink-0" onClick={() => onSelectView('cameras')}>
           <SightForgeLogo size="md" showWordmark showDescriptor={false} />
         </div>
 
@@ -77,7 +75,7 @@ export default function Header({
             className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#1B1D1A] hover:bg-[#F2F3EF] border border-transparent hover:border-[#D9DCD5] transition-colors"
           >
             <span className="w-2 h-2 rounded-full bg-[#3F8F5B]" />
-            <span>{currentWorkspace}</span>
+            <span className="truncate max-w-[180px] xl:max-w-none">{currentWorkspace}</span>
             <ChevronDown size={14} className="text-[#747A73]" />
           </button>
 
@@ -113,28 +111,41 @@ export default function Header({
         </div>
       </div>
 
-      {/* Center Search / Command Launcher */}
-      <div className="flex-1 max-w-md mx-4 hidden sm:block">
+      {/* Center Search / Command Launcher for Tablet/Desktop */}
+      <div className="flex-1 max-w-sm lg:max-w-md mx-3 lg:mx-6 hidden md:block">
         <button
           onClick={onOpenCommandPalette}
           className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-[#F7F7F3] hover:bg-[#F2F3EF] border border-[#D9DCD5] text-xs text-[#747A73] transition-colors group focus-visible:outline-2 focus-visible:outline-[#E7B900]"
         >
-          <div className="flex items-center gap-2">
-            <Search size={14} className="text-[#747A73] group-hover:text-[#1B1D1A]" />
-            <span className="font-medium">Search cameras, models, analytics...</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <Search size={14} className="text-[#747A73] group-hover:text-[#1B1D1A] shrink-0" />
+            <span className="font-medium truncate">Search cameras, models, analytics...</span>
           </div>
-          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white text-[#747A73] border border-[#D9DCD5]">
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white text-[#747A73] border border-[#D9DCD5] shrink-0 ml-2">
             ⌘K
           </kbd>
         </button>
       </div>
 
-      {/* Right Area: System Status Pill + Notification + User Menu */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      {/* Right Area: Mobile Search Button + System Status Pill + Notification + User Menu */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Mobile Search Button */}
+        <button
+          onClick={onOpenCommandPalette}
+          className="p-1.5 sm:p-2 rounded-lg bg-[#F7F7F3] hover:bg-[#F2F3EF] border border-[#D9DCD5] text-[#555B55] hover:text-[#1B1D1A] transition-colors md:hidden focus-visible:outline-2 focus-visible:outline-[#E7B900]"
+          aria-label="Search workspace (⌘K)"
+        >
+          <Search size={16} />
+        </button>
+
         {/* Live Engine Status Badge */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-md bg-[#EEF8F0] border border-[#D9DCD5] text-xs font-semibold text-[#3F8F5B]">
+        <div className="hidden sm:flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-md bg-[#EEF8F0] border border-[#D9DCD5] text-xs font-semibold text-[#3F8F5B]">
           <span className="w-2 h-2 rounded-full bg-[#3F8F5B] animate-pulse" />
           <span>Engine Active</span>
+        </div>
+        <div className="flex sm:hidden items-center gap-1.5 px-2 py-1 rounded-md bg-[#EEF8F0] border border-[#D9DCD5] text-[11px] font-semibold text-[#3F8F5B]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#3F8F5B] animate-pulse" />
+          <span>Live</span>
         </div>
 
         {/* Notifications Dropdown */}
@@ -149,7 +160,7 @@ export default function Header({
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 mt-1 w-80 rounded-lg bg-white border border-[#D9DCD5] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-2 z-50 text-xs">
+            <div className="absolute right-0 mt-1.5 w-[calc(100vw-1.5rem)] sm:w-80 max-w-sm rounded-lg bg-white border border-[#D9DCD5] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-2 z-50 text-xs">
               <div className="px-4 py-2 border-b border-[#D9DCD5] flex items-center justify-between font-semibold text-[#1B1D1A]">
                 <span>System Notifications</span>
                 <span className="text-[11px] font-medium text-[#3F8F5B] bg-[#EEF8F0] px-2 py-0.5 rounded">All Operational</span>
@@ -193,7 +204,7 @@ export default function Header({
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 mt-1 w-56 rounded-lg bg-white border border-[#D9DCD5] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1.5 z-50 text-xs">
+            <div className="absolute right-0 mt-1.5 w-56 max-w-[calc(100vw-1.5rem)] rounded-lg bg-white border border-[#D9DCD5] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1.5 z-50 text-xs">
               <div className="px-3.5 py-2 border-b border-[#D9DCD5]">
                 <div className="font-bold text-[#1B1D1A]">Lead CV Engineer</div>
                 <div className="text-[11px] text-[#747A73] font-mono">edge-admin@sightforge.internal</div>
