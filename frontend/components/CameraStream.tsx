@@ -12,6 +12,7 @@ import { BRAND } from '../config/brand';
 import { DetectionOverlay } from './DetectionOverlay';
 import CVDebugPanel from './CVDebugPanel';
 import { useCVFrame, CVDetection, CVPose, CVKeypoint } from '../hooks/useCVFrame';
+import { cvEngine } from '../utils/cvEngine';
 
 export const CLASS_COLORS: Record<string, string> = {
   'Person': '#3F8F5B',      // Forest Green
@@ -180,11 +181,18 @@ export default function CameraStream({
   // Video & Canvas Refs
   const videoStageRef = useRef<HTMLDivElement>(null);
   const webcamVideoRef = useRef<HTMLVideoElement>(null);
+  const feedImgRef = useRef<HTMLImageElement>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
-  const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameIdCounter = useRef<number>(1000);
   const prevPersonCountRef = useRef<number>(0);
+
+  // Preload real neural network CV model
+  useEffect(() => {
+    cvEngine.loadModel().catch((err) => {
+      console.warn('[SIGHTFORGE] COCO-SSD background preload:', err);
+    });
+  }, []);
 
   // Track rendered dimensions for overlay scaling
   useEffect(() => {
@@ -204,6 +212,7 @@ export default function CameraStream({
   // When switching camera, reset frame state immediately (Zero ghost carryover)
   const handleSelectCamera = (cam: CameraData) => {
     resetFrame();
+    cvEngine.resetTracker();
     setSelectedCam(cam);
     if (onSelectCameraId) onSelectCameraId(cam.id);
   };
@@ -265,7 +274,7 @@ export default function CameraStream({
     return () => clearInterval(timer);
   }, [isRecording]);
 
-  // Real-time Computer Vision Processing Loop
+  // Real-time Computer Vision Processing Loop with Real Neural Network Detector
   useEffect(() => {
     if (!isPlaying || !selectedCam || selectedCam.device_status === 'offline') {
       resetFrame();
@@ -273,265 +282,135 @@ export default function CameraStream({
     }
 
     let active = true;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
 
-    const tick = () => {
+    const tick = async () => {
       if (!active) return;
 
       const isWebcam = selectedCam.id === 'CAM-WEBCAM';
       const t0 = performance.now();
       const currentFrameId = ++frameIdCounter.current;
 
-      if (isWebcam && webcamVideoRef.current && webcamVideoRef.current.readyState >= 2) {
-        const video = webcamVideoRef.current;
-        const srcW = video.videoWidth || 1280;
-        const srcH = video.videoHeight || 720;
+      try {
+        if (isWebcam && webcamVideoRef.current && webcamVideoRef.current.readyState >= 2) {
+          const video = webcamVideoRef.current;
+          const srcW = video.videoWidth || 1280;
+          const srcH = video.videoHeight || 720;
 
-        const sampleW = 160;
-        const sampleH = 90;
+          const { detections: realDetections, poses: realPoses } = await cvEngine.detectFrame(
+            video,
+            srcW,
+            srcH,
+            confidenceThreshold,
+            selectedClasses
+          );
 
-        let canvas = analysisCanvasRef.current;
-        if (!canvas) {
-          canvas = document.createElement('canvas');
-          canvas.width = sampleW;
-          canvas.height = sampleH;
-          analysisCanvasRef.current = canvas;
-        }
+          if (!active) return;
 
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          try {
-            ctx.drawImage(video, 0, 0, sampleW, sampleH);
-            const imgData = ctx.getImageData(0, 0, sampleW, sampleH);
-            const data = imgData.data;
+          const t1 = performance.now();
+          const inferenceTime = Math.round((t1 - t0) * 10) / 10;
+          const realPersonCount = realDetections.filter(d => d.class_name.toLowerCase() === 'person').length;
+          const realTrackedCount = new Set(
+            realDetections.filter(d => d.track_id != null).map(d => d.track_id)
+          ).size;
 
-            const colDensity = new Uint16Array(sampleW);
-            const rowDensity = new Uint16Array(sampleH);
-            let totalSubjectPixels = 0;
-            let totalLuminance = 0;
+          receiveFrame({
+            frame_id: currentFrameId,
+            timestamp: Date.now(),
+            frame_width: srcW,
+            frame_height: srcH,
+            detections: realDetections,
+            poses: realPoses,
+            faces: [],
+            person_count: realPersonCount,
+            tracked_person_count: realTrackedCount,
+            inference_ms: inferenceTime,
+          });
 
-            // 1. Column & Row Density Histograms for robust human subject localization
-            for (let y = 0; y < sampleH; y++) {
-              for (let x = 0; x < sampleW; x++) {
-                const i = (y * sampleW + x) * 4;
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-
-                const lum = (r + g + b) / 3;
-                totalLuminance += lum;
-
-                // Targeted human skin, hair, and torso chromatic classifier
-                const isSkin = r > 65 && g > 45 && b > 30 && r > b && (r - g) >= 4 && (r - g) < 85;
-                const isHairOrDarkTorso = lum < 45 && y > 10;
-                const isClothingOrBody = lum > 50 && lum < 220 && Math.abs(r - g) < 40 && Math.abs(g - b) < 40 && y > 18;
-
-                if (isSkin || isHairOrDarkTorso || isClothingOrBody) {
-                  colDensity[x]++;
-                  rowDensity[y]++;
-                  totalSubjectPixels++;
-                }
-              }
-            }
-
-            const avgLuminance = totalLuminance / (sampleW * sampleH);
-
-            // 2. Find Dense Contiguous Horizontal Cluster (isolates person from background noise)
-            const minColThreshold = 8; // Column must contain at least 8 vertical subject pixels
-            let maxClusterLen = 0;
-            let bestStart = -1;
-            let bestEnd = -1;
-            let currentStart = -1;
-
-            for (let x = 0; x < sampleW; x++) {
-              if (colDensity[x] >= minColThreshold) {
-                if (currentStart === -1) currentStart = x;
-              } else {
-                if (currentStart !== -1) {
-                  const len = x - currentStart;
-                  if (len > maxClusterLen) {
-                    maxClusterLen = len;
-                    bestStart = currentStart;
-                    bestEnd = x;
-                  }
-                  currentStart = -1;
-                }
-              }
-            }
-            if (currentStart !== -1 && (sampleW - currentStart) > maxClusterLen) {
-              maxClusterLen = sampleW - currentStart;
-              bestStart = currentStart;
-              bestEnd = sampleW;
-            }
-
-            // 3. Find Vertical Bounds within that Column Cluster
-            let clusterMinY = sampleH;
-            let clusterMaxY = 0;
-
-            if (bestStart !== -1 && bestEnd !== -1) {
-              for (let y = 0; y < sampleH; y++) {
-                let rowCountInCluster = 0;
-                for (let x = bestStart; x < bestEnd; x++) {
-                  const i = (y * sampleW + x) * 4;
-                  const r = data[i];
-                  const g = data[i + 1];
-                  const b = data[i + 2];
-                  const lum = (r + g + b) / 3;
-                  const isSubject = (r > 60 && g > 40 && b > 25 && r > b) || (lum < 45 && y > 10) || (lum > 50 && y > 20);
-                  if (isSubject) rowCountInCluster++;
-                }
-                if (rowCountInCluster >= 3) {
-                  if (y < clusterMinY) clusterMinY = y;
-                  if (y > clusterMaxY) clusterMaxY = y;
-                }
-              }
-            }
-
-            const clusterWidth = bestEnd - bestStart;
-            const clusterHeight = clusterMaxY - clusterMinY;
-
-            // Strict human proportions check (head + torso cluster)
-            const hasValidPerson = 
-              avgLuminance > 20 &&
-              totalSubjectPixels >= 220 &&
-              bestStart !== -1 &&
-              clusterWidth >= 16 &&
-              clusterWidth <= sampleW * 0.75 &&
-              clusterHeight >= 20;
-
-            const t1 = performance.now();
-            const inferenceTime = Math.round((t1 - t0 + 12) * 10) / 10;
-
-            if (hasValidPerson && selectedClasses.includes('Person') && 0.88 >= confidenceThreshold) {
-              // Exact mapping of cluster coordinates to source video frame pixels
-              const detectedX1 = Math.max(0, (bestStart / sampleW) * srcW);
-              const detectedY1 = Math.max(0, (clusterMinY / sampleH) * srcH);
-              const detectedX2 = Math.min(srcW, (bestEnd / sampleW) * srcW);
-              const detectedY2 = Math.min(srcH, (clusterMaxY / sampleH) * srcH);
-
-              const personDet: CVDetection = {
-                class_id: 0,
-                class_name: 'Person',
-                confidence: 0.88,
-                x1: detectedX1,
-                y1: detectedY1,
-                x2: detectedX2,
-                y2: detectedY2,
-                track_id: 1,
-                x1_norm: detectedX1 / srcW,
-                y1_norm: detectedY1 / srcH,
-                x2_norm: detectedX2 / srcW,
-                y2_norm: detectedY2 / srcH,
-              };
-
-              const centerX = (detectedX1 + detectedX2) / 2;
-              const boxW = detectedX2 - detectedX1;
-              const boxH = detectedY2 - detectedY1;
-
-              const headTopY = detectedY1;
-              const eyeY = headTopY + boxH * 0.18;
-              const noseY = headTopY + boxH * 0.24;
-              const earY = headTopY + boxH * 0.22;
-              const shoulderY = headTopY + boxH * 0.44;
-              const elbowY = headTopY + boxH * 0.68;
-              const wristY = headTopY + boxH * 0.90;
-
-              const personPose: CVPose = {
-                person_index: 0,
-                track_id: 1,
-                keypoints: [
-                  { name: 'nose', x: centerX, y: noseY, confidence: 0.91 },
-                  { name: 'left_eye', x: centerX - boxW * 0.14, y: eyeY, confidence: 0.89 },
-                  { name: 'right_eye', x: centerX + boxW * 0.14, y: eyeY, confidence: 0.92 },
-                  { name: 'left_ear', x: centerX - boxW * 0.28, y: earY, confidence: 0.78 },
-                  { name: 'right_ear', x: centerX + boxW * 0.28, y: earY, confidence: 0.81 },
-                  { name: 'left_shoulder', x: centerX - boxW * 0.38, y: shoulderY, confidence: 0.86 },
-                  { name: 'right_shoulder', x: centerX + boxW * 0.38, y: shoulderY, confidence: 0.88 },
-                  { name: 'left_elbow', x: centerX - boxW * 0.46, y: elbowY, confidence: 0.75 },
-                  { name: 'right_elbow', x: centerX + boxW * 0.46, y: elbowY, confidence: 0.77 },
-                  { name: 'left_wrist', x: centerX - boxW * 0.42, y: wristY, confidence: 0.71 },
-                  { name: 'right_wrist', x: centerX + boxW * 0.42, y: wristY, confidence: 0.73 },
-                ]
-              };
-
-              // Emit Authoritative Frame with accurately bounded Person
-              receiveFrame({
-                frame_id: currentFrameId,
-                timestamp: Date.now(),
-                frame_width: srcW,
-                frame_height: srcH,
-                detections: [personDet],
-                poses: [personPose],
-                faces: [],
-                person_count: 1,
-                tracked_person_count: 1,
-                inference_ms: inferenceTime,
-              });
-
-              if (prevPersonCountRef.current === 0) {
-                setEvents(prev => [
-                  {
-                    id: String(Date.now()),
-                    cameraName: selectedCam.name,
-                    className: 'Person',
-                    confidence: 0.88,
-                    trackId: 1,
-                    timestamp: new Date().toLocaleTimeString(),
-                  },
-                  ...prev.slice(0, 9)
-                ]);
-              }
-              prevPersonCountRef.current = 1;
-            } else {
-              // Emit Explicit EMPTY Frame (0 Persons, 0 Poses, 0 Tracks)
-              receiveFrame({
-                frame_id: currentFrameId,
-                timestamp: Date.now(),
-                frame_width: srcW,
-                frame_height: srcH,
-                detections: [],
-                poses: [],
-                faces: [],
-                person_count: 0,
-                tracked_person_count: 0,
-                inference_ms: inferenceTime,
-              });
-              prevPersonCountRef.current = 0;
-            }
-
-            setLiveLatency(inferenceTime);
-          } catch (e) {
-            console.error("Frame analysis error:", e);
+          if (realPersonCount > 0 && prevPersonCountRef.current === 0) {
+            setEvents(prev => [
+              {
+                id: String(Date.now()),
+                cameraName: selectedCam.name,
+                className: realDetections[0]?.class_name || 'Person',
+                confidence: realDetections[0]?.confidence || 0.85,
+                trackId: realDetections[0]?.track_id ?? 1,
+                timestamp: new Date().toLocaleTimeString(),
+              },
+              ...prev.slice(0, 9)
+            ]);
           }
+          prevPersonCountRef.current = realPersonCount;
+          setLiveLatency(inferenceTime);
+        } else if (!isWebcam && feedImgRef.current && feedImgRef.current.complete) {
+          const img = feedImgRef.current;
+          const srcW = img.naturalWidth || 1920;
+          const srcH = img.naturalHeight || 1080;
+
+          const { detections: realDetections, poses: realPoses } = await cvEngine.detectFrame(
+            img,
+            srcW,
+            srcH,
+            confidenceThreshold,
+            selectedClasses
+          );
+
+          if (!active) return;
+
+          const t1 = performance.now();
+          const inferenceTime = Math.round((t1 - t0) * 10) / 10;
+          const realPersonCount = realDetections.filter(d => d.class_name.toLowerCase() === 'person').length;
+          const realTrackedCount = new Set(
+            realDetections.filter(d => d.track_id != null).map(d => d.track_id)
+          ).size;
+
+          receiveFrame({
+            frame_id: currentFrameId,
+            timestamp: Date.now(),
+            frame_width: srcW,
+            frame_height: srcH,
+            detections: realDetections,
+            poses: realPoses,
+            faces: [],
+            person_count: realPersonCount,
+            tracked_person_count: realTrackedCount,
+            inference_ms: inferenceTime,
+          });
+
+          prevPersonCountRef.current = realPersonCount;
+          setLiveLatency(inferenceTime);
+        } else {
+          // Camera feed not ready yet or standby
+          receiveFrame({
+            frame_id: currentFrameId,
+            timestamp: Date.now(),
+            frame_width: 1280,
+            frame_height: 720,
+            detections: [],
+            poses: [],
+            faces: [],
+            person_count: 0,
+            tracked_person_count: 0,
+            inference_ms: 0,
+          });
+          prevPersonCountRef.current = 0;
         }
-      } else {
-        // Recorded Static Feeds Simulation
-        const srcW = 1920;
-        const srcH = 1080;
-        receiveFrame({
-          frame_id: currentFrameId,
-          timestamp: Date.now(),
-          frame_width: srcW,
-          frame_height: srcH,
-          detections: [],
-          poses: [],
-          faces: [],
-          person_count: 0,
-          tracked_person_count: 0,
-          inference_ms: 14.5,
-        });
-        prevPersonCountRef.current = 0;
+      } catch (err) {
+        console.error("Frame CV processing error:", err);
       }
 
-      // 30 FPS tick interval
-      const interval = 1000 / (selectedCam?.fps || 30);
-      const timer = setTimeout(tick, interval);
-      return () => clearTimeout(timer);
+      if (active) {
+        const interval = Math.max(30, 1000 / (selectedCam?.fps || 30));
+        timerId = setTimeout(tick, interval);
+      }
     };
 
-    const timer = setTimeout(tick, 100);
+    // Kick off real inference loop
+    timerId = setTimeout(tick, 50);
+
     return () => {
       active = false;
-      clearTimeout(timer);
+      if (timerId) clearTimeout(timerId);
     };
   }, [isPlaying, selectedCam, confidenceThreshold, iouThreshold, selectedClasses, receiveFrame, resetFrame]);
 
@@ -670,8 +549,10 @@ export default function CameraStream({
               />
             ) : (
               <img
+                ref={feedImgRef}
                 src={selectedCam.feed_url}
                 alt={selectedCam.name}
+                crossOrigin="anonymous"
                 className="absolute inset-0 w-full h-full object-cover"
               />
             )}

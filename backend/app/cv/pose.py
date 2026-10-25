@@ -43,6 +43,18 @@ class PoseDetector:
 
     def _load_model(self):
         try:
+            if self.device == "auto":
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        self.device = "cuda:0"
+                    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                        self.device = "mps"
+                    else:
+                        self.device = "cpu"
+                except Exception:
+                    self.device = "cpu"
+
             from ultralytics import YOLO
             self.model = YOLO(self.model_path)
             self.is_loaded = True

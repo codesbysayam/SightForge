@@ -14,6 +14,7 @@ from backend.app.middleware.middleware import RequestTimingMiddleware
 from backend.app.database.database import verify_database_connection
 from backend.app.api.dependencies import get_db
 from backend.app.routes.camera import router as camera_router
+from backend.app.routes.cv import router as cv_router
 
 # Initialize main logging agency
 logger = setup_logger("server_bootstrap")
@@ -69,6 +70,7 @@ app.add_exception_handler(VisionTrackException, global_exception_handler)
 
 # Include RTSP Camera streams router
 app.include_router(camera_router, prefix="/api/v1/cameras", tags=["Cameras"])
+app.include_router(cv_router, prefix="/api/v1/cv", tags=["Computer Vision"])
 
 
 # ==============================================================================

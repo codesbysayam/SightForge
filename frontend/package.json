@@ -18,7 +18,9 @@
     "@tailwindcss/postcss": "^4.0.0-beta.8",
     "postcss": "^8.4.49",
     "@babel/runtime": "^7.26.0",
-    "recharts": "^2.15.0"
+    "recharts": "^2.15.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow-models/coco-ssd": "^2.2.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

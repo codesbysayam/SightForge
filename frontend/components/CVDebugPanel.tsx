@@ -74,7 +74,7 @@ export default function CVDebugPanel({
 
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-mono bg-[#F7F7F3] px-2.5 py-1 rounded text-[#555B55] border border-[#D9DCD5]">
-            yolov8n.pt · CPU · PyTorch 2.3
+            COCO-SSD (MobileNet v2) · WebGL/Edge
           </span>
           {onClose && (
             <button
