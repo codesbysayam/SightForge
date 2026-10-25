@@ -1,6 +1,8 @@
 {
-  "name": "SIGHTFORGE",
-  "description": "Real-time computer vision, object detection, multi-object tracking, and edge analytics.",
-  "requestFramePermissions": ["camera"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "SIGHTFORGE - Intelligent Computer Vision Platform",
+  "description": "Real-time AI computer vision workspace for multi-camera streams, person detection, pose estimation, and edge tracking.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "permissions": []
 }
